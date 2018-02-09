@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+
+<meta name="robot" content="noindex">
+<html>
+<head>
+<meta name="Andross" content="It's a face">
+  <meta charset="utf-8">
+  <title>TWGL 101</title>
+   <canvas id="myCanvas" 
+	   width="500" height="500"
+	   style="border:1px solid #000;">
+  </canvas><br/>
+  <input id="slider1" type="range" min="-50" max="-30" />
+  <script src="http://graphics.cs.wisc.edu/JS/twgl-full.min.js"></script>
+</head>
+<body>
+1
+<script id="jsbin-javascript">
+function setup() { "use strict";
+  var canvas = document.getElementById('myCanvas');
+  var context = canvas.getContext('2d');
+  var m4 = twgl.m4;
+   var slider1 = document.getElementById('slider1');
+  slider1.value = -42
+  var mouth = 10;              
+  function moveToTx(x,y,z,Tx) {
+    var loc = [x,y,z];
+    var locTx = m4.transformPoint(Tx,loc);
+    context.moveTo(locTx[0]+250,-locTx[1]+250);
+  }
+
+  function lineToTx(x,y,z,Tx) {
+    var loc = [x,y,z];
+    var locTx = m4.transformPoint(Tx,loc);
+    context.lineTo(locTx[0]+250,-locTx[1]+250);
+  }
+                
+
+  function drawface(Tx) {
+    
+    //this draws the black background
+    context.strokeStyle = "black";
+    var c1 = [3*canvas.width, 3*canvas.height, 0];
+    var c2 = [3*-canvas.width, 3*canvas.height, 0];
+    var c3 = [3*canvas.width, 3*-canvas.height, 0];
+   var c4 = [3*-canvas.width, 3*-canvas.height, 0];
+    poly(c2, c4, c3, c1, Tx, "black");
+    
+    //these are the coorinates for the face
+   var f1 = [0, 200, -15];
+    var f2 = [-88, 195, -10];
+    var f3 = [-150, 110, -5];
+    var f4 = [-155, -10, -5];
+    var f5 = [-140, -120, -10];
+     var f6 = [-70, -200, -15];
+     var f7 = [70, -200, -15];
+    var f8 = [140, -120, -10];
+    var f9 = [155, -10, -5];
+    var f10 = [150, 110, -5];
+      var f11 = [88, 195, -10];
+    context.save();
+ 
+    context.lineWidth = 1;
+  
+   
+    context.stroke();
+    context.restore();
+    //n are coordinates for the nose
+    //i are coordinates for the eyes
+    //a are coordinates for accents on the face
+    var n2 = [-15, 70, 5];
+    
+    var n1 = [15, 70, 5];
+    var n4 = [20, -30, 35];
+    var n3 = [-20, -30, 35];
+    
+   poly(f1, n1, n2, f1, Tx, "#E8DEE6");
+    
+    //the mouth variable controls the movement of the mouth
+    var posi = 85-mouth;
+    var posi3 = 30+mouth/5;
+    var posi2 = mouth/5-95;
+    var posi22 = -mouth/5-150;
+     var a1 = [93, 110, 20];
+    var a2 = [-93, 110, 20];
+    var a5 = [0, -75, 10+mouth/10];
+    var m1 = [0, posi2, posi3+5];
+    var m3 = [0, posi22, posi3-15];
+    var a6 = [0, -170, 5];
+    var m2 = [-1*posi, -100, 10]
+    var m4 = [posi, -100, 10]
+     var i1 = [-32, 55, 0];
+    
+ 
+   
+     var i3 = [-153, 55, 5];
+    //iposi means eye position coordinates
+    var iposi = 43 + mouth/6;
+    var iposi2 = 75 + mouth/20;
+    var i2 = [-95, iposi2, 25];
+    var i4 = [-95, iposi, 25];
+    var a4 = [-94, 2, 25];
+     var a3 = [94, 2, 25];
+    var i6 = [95, iposi, 25];
+    var i8 = [95, iposi2, 25];
+    var i7 = [153, 55, 5];
+    var i5 = [32, 55, 0];
+    var n6 = [40, -40, 0];
+    var n5 = [-40, -40, 0];
+    context.strokeStyle = "black";
+  
+      poly(m1, a5, m4, m1, Tx, "#9894AB");
+     poly(f1, a1, n1, f1, Tx, "#F3EDF1");
+   poly(f1, a2, n2, f1, Tx, "#D7CFDC");
+    poly(f11, a1, f1, f11, Tx, "D0C8D5");
+  poly(f2, a2, f1, f2, Tx, "#DAD2DD");
+  poly(f2, a2, f3, f2, Tx, "#E8DEE6");
+    
+  poly(f11, a1, f10, f11, Tx, "#7C809D");
+    
+    poly(a2, f3, i3, a2, Tx, "#FDF4F9");
+      poly(a2, n2, i1, Tx, a2, "FFFBFD");
+    
+    poly(a2, i2, i1, a2, Tx, "#918EA9");
+      poly(a2, i2, i3, a2, Tx, "#DCD4E1");
+     poly(i1, a4, i4, i1, Tx, "#A7A3B4");
+    poly(a3, n6, i5, a3, Tx, "#FFF7FC");
+   poly(f10, a1, i7, f10, Tx, "#818199");
+    poly(i5, n1, a1, i5, Tx, "#E6DCE5");
+    poly(i8, i5, a1, i8, Tx, "#E9DEE4");
+    poly(i8, i7, a1, i8, Tx, "#63678A");
+    poly(i6, i7, a3, i6, Tx, "#6C6D89");
+   
+    poly(n1, n4, i5, n1, Tx, "#9491AC");
+    poly(n3, n2, i1, n3, Tx, "#EEE4EC");
+    poly(n6, n4, i5, n6, Tx, "#616588");
+    poly(n3, n5, i1, n3, Tx, "#DAD2DD");
+    poly(n1, n2, n3, n4, Tx, "#D4C9D7"); 
+    poly(a4, n5, i1, a4, Tx, "#C9C1CE");
+    poly(a4, n5, f4, a4, Tx, "#F3E9F1");
+    poly(a4, i3, i4, a4, Tx, "#F9EFF7");
+    poly(f9, a3, i7, f9, Tx, "#818199");
+    poly(f9, a3, n6, f9, Tx, "#A4A1B2");
+    poly(i6, a3, i5, i6, Tx, "#A4A1B2");
+    poly(n6, a5, n5, n6, Tx, "#6D7292");
+    poly(n2, i1, a2, n2, Tx, "#FAF1F4");
+    poly(m1, a5, m2, m1, Tx, "#DDD7D9");
+  
+    poly(f9, n6, m4, f9, Tx, "#CCC6D2");
+    poly(f4, n5, m2, f4, Tx, "#F9EEF4");
+    poly(f4, f5, m2, f4, Tx, "#FEF5FA");
+    poly(f6, f5, m2, f6, Tx, "#FFFAFE");
+    poly(f9, f8, m4, f9, Tx, "#B7B3C1");
+    poly(f7, f8, m4, f7, Tx, "#BDBAC5");
+    
+    poly(m4, a6, m3, m4, Tx, "#A3A0B3");
+       poly(f7, f6, a6, f7, Tx, "#ACA8B9");
+    poly(a6, f6, m2, a6, Tx, "#FCF3F6");
+    poly(a6, m3, m2, a6, Tx, "#E5DADE");
+    poly(a5, n5, m2, a5, Tx, "#E5DEE2")
+    poly(i3, f4, a4, i3, Tx, "#FDF4F9");
+    poly(n4, n3, n5, n6, Tx, "#9C94A9");
+    poly(m4, a6, f7, m4, Tx, "#86849A");
+    poly(n6, a5, m4, n6, Tx, "#81829E");
+    poly(i7, i6, i5, i8, Tx, "#FFE19E");
+    poly(i1, i2, i3, i4, Tx, "#FFE19E");
+    
+     
+  }
+  //this draws a polygon based on four vectors
+  function poly(one, two, three, four, Tx, color){
+
+context.beginPath();
+    
+     moveToTx(one[0], one[1], one[2], Tx);
+      lineToTx(two[0],two[1],two[2],Tx);
+   lineToTx(three[0],three[1],three[2],Tx); 
+     lineToTx(four[0], four[1], four[2], Tx);
+   lineToTx(one[0], one[1], one[2], Tx);
+    context.closePath();
+    context.fillStyle = color;
+    context.fill();
+    
+   
+   }
+                  
+   //this spits his gum out
+   function spit (Tx, det){
+    var p1 = [-30, -105, 0];
+    var p2 = [20, -105, 0];
+    var p3 = [20, -125, 0];
+    var p4 = [-30, -125, 0];
+      var p5 = [-30, -105, -20];
+    var p6 = [20, -105, -20];
+    var p7 = [20, -125, -20];
+    var p8 = [-30, -125, -20];
+    if (det>-100){
+        poly(p1, p4, p8, p5, Tx, "blue");
+    poly(p4, p3, p7, p8, Tx, "blue");
+    poly(p1, p2, p3, p4, Tx, "blue");
+     poly(p2, p3, p7, p6, Tx, "white");
+      poly(p5, p6, p7, p8, Tx, "white");
+     poly(p1, p2, p6, p5, Tx, "white");
+    
+       poly(p1, p4, p8, p5, Tx, "white");
+   }
+ }
+  function draw() {
+
+    canvas.width = canvas.width;
+    
+    //used for turning it
+    var angle1 = slider1.value*0.01*Math.PI;
+    var angle2 = 0.2;
+    var axis = [-6,3,16];
+  
+    var Tmodel=m4.axisRotation(axis,angle2);
+
+    var eye=[600*Math.cos(angle1),100,500*Math.sin(angle1)];
+    var target=[0,0,0];
+    var up=[0,1,0];
+    var Tcamera=m4.inverse(m4.lookAt(eye,target,up));   
+    
+    var Tmodelview=m4.multiply(Tmodel,Tcamera);
+    
+     var d = new Date();
+    var n = d.getTime();
+    var motion = n%7000 - 2000;
+    var motion2 = motion+5000;
+   motion = motion/6;
+  
+    var pp = -1;
+    
+      
+    var Tproj = m4.multiply(m4.translation([0, 0, motion]), Tmodelview);
+    
+    if (motion > -160){
+      if (motion >250){
+        mouth = (0.99)*mouth;
+      } else {
+        
+         mouth += (motion+160)/400;
+      }
+     
+      if (mouth > 60){ mouth = 60;}
+      drawface(Tmodelview);
+      if (motion > 0){ spit(Tproj, motion);}
+     
+    } else {
+      
+      
+      drawface(Tmodelview);
+      
+     
+    }
+    
+   window.requestAnimationFrame(draw);
+         }
+
+  slider1.addEventListener("input", window.requestAnimationFrame(draw));
+ 
+ window.requestAnimationFrame(draw);
+
+
+}
+window.onload = setup;
+
+</script>
+</body>
+</html>
