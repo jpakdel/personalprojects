@@ -1,220 +1,431 @@
 #include <stdio.h>
 #include <string.h>
-#include <stdlib.h>
 #include <unistd.h>
+#include <stdlib.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <sys/wait.h>
 #include <fcntl.h>
 #include <errno.h>
 #include <math.h>
 
+char delimit[] = " \t\r\n\v\f";				// whitespace chars
+int runningpids[20];	
+int boo = 1;
+void prompt(int commandCount);
+void processInstruction(int argc, char *argv[]);
+void executeInstruction(char *argv[], char *outR, char *inR, int background);
+void redirectInput(char *file);
+void redirectOutput(char *file);
+void make_pipe1(char *pipe1[], char *argv[], int split);
+void make_pipe2(char *pipe2[], char *argv[], int split, int end);
+void printError();
+void pwd();						// execution of pwd
+void cd(char *dir);					// execution of cd
+void clearzombies();
+void exitshell();
+void myPipe(char** first, char** second);
+void run_pipe1(int fd[], char** arg1);
+void run_pipe2(int fd[], char** arg2);
+int commandcount = 1;
 
-char** first_pipe(char** args, int size);
-char** sec_pipe(char** args, int size);
-char* change_my_string(char* cha);
-void piper(char** args1, char** args2);
-int main(int argc, char* argv[]){
-	int j = 2;
-	char* a[2];
-	a[0] = strdup("ls");
-	a[1] = NULL;
+int main(int argc, char *argv[]){
 	
- 	FILE* f = fopen("test.txt", "w");
-	int fn = fileno(f);
+	//badarg error checking
+	if (argc > 1){
+		printError();
+		exit(1);
+	}
+
+	while(1){
+		clearzombies();		
+		prompt(commandcount);
+		commandcount++;	
+	}
 	
-	char** input = malloc(sizeof(char*)*5);
-	input[0] = strdup("seq");
-	input[1] = strdup("5");
-	input[2] = strdup("|");	
-	input[3] = strdup("wc");
-	input[4] = strdup("-c");
-	
-	char** first = first_pipe(input, 5);
-	
-	char** second = sec_pipe(input, 5);
-	
-	piper(first, second);
-	
-		
 	return 0;
 }
 
-void pwd(){
-	char* out = getcwd(NULL, 0);
-	if (out == NULL) { myError();}
-	write(STDOUT_FILENO, out, strlen(out));
-	write(STDOUT_FILENO, "\n", 1);
+// prompts user for input
+void prompt(int commandCount){	
+	char commandLine[1000];
+	char *tmpargs[65];
+	// print prompt, read in line of input to commandLine	
+	printf("mysh (%i)> ", commandCount);
 	fflush(stdout);
+	if(fgets(commandLine, 1000, stdin) == (NULL)){
+		return(printError());
+	}
+	// check for command line that is too long - print error message
+	if(strlen(commandLine) > 128){
+		return(printError());
+	}
+	
+	char *token;
+	int myargc = 0;
+	token = strtok(commandLine, delimit);
+	tmpargs[0] = token;
+	// count number of args in commandLine
+	// read each arg into tmpargs
+	while(token != NULL){
+		token = strtok(NULL, delimit);
+		++myargc;
+		tmpargs[myargc] = token;
+	}
+	
+	// read Arguments into myargv
+	char *myargv[myargc + 1];
+	for(int lcv = 0; lcv < myargc; ++lcv){
+		myargv[lcv] = tmpargs[lcv];
+	}
+	myargv[myargc] = NULL;
+
+	// runs function to execute instruction, returns to main
+	if(myargc > 0){
+		processInstruction(myargc + 1, myargv);	
+	} else {
+		commandcount--;
+	}
+	free(token);
+	token = NULL;
+	return;
+}
+
+// executes instruction
+void processInstruction(int argc, char *argv[]){
+	char * blank = "";
+	char * outputRedirect = NULL;
+	char * inputRedirect = NULL;
+	int endofinstruction = argc - 1;
+	int endset = 0;
+	int background = 0;
+	
+	// only redirect char, do nothing
+	if(argc == 2){
+		if(strcmp(argv[0], ">") == 0){
+			return;
+		}
+		if(strcmp(argv[0], "<") == 0){
+			return;
+		}
+	}
+
+	// exit, cd, pwd cases
+	if(strcmp(argv[0], "exit") == 0){
+		if(argc > 2){
+			return(printError());
+		}
+		exitshell();
+		return;
+	}
+	if(strcmp(argv[0], "cd") == 0){
+		if(argc == 2){
+			cd(blank);
+		}else{
+			cd(argv[1]);
+		}
+		return;
+	}
+	if(strcmp(argv[0], "pwd") == 0){
+		if(argc > 2){
+			return(printError());
+		}
+		pwd();	
+		return;	
+	}
+
+	// run in background
+	if(strcmp(argv[argc-2], "&") == 0){
+		background = 1;
+	}
+
+	// "|" ">" "<" cases
+	for(int lcv = 0; lcv < argc-1; ++lcv){
+		if(strcmp(argv[lcv], "|") == 0){
+			// PIPE
+			if(lcv == 0){		// no command before pipe
+				return(printError());	
+			}
+			if(!(argv[lcv + 1])){	// no command after pipe
+				return(printError());
+			}
+			if(!(argv[lcv - 1])){	// no command before pipe
+				return(printError());
+			}
+		
+		// create new arg vectors
+		char *pipe1[lcv + 1];
+		make_pipe1(pipe1, argv, lcv);
+		char *pipe2[argc - lcv - 1];
+		make_pipe2(pipe2, argv, lcv, argc);
+		//run the pipe argument vectors
+		myPipe(pipe1, pipe2);			
+		return;
+		}
+
+		if(strcmp(argv[lcv], ">") == 0){
+			// REDIRECT - OUTPUT
+			if(!(argv[lcv + 1])){	// no file specified
+				return(printError());
+			}
+			if((lcv + 2) < argc-1){	// too many args after redirect
+				if(strcmp(argv[lcv + 2], "<") != 0){
+					if(strcmp(argv[lcv + 2], "&") != 0){
+						return(printError());
+					}
+				}
+			}
+			outputRedirect = argv[lcv + 1];
+		
+			// sets index of end of instruction to be executed	
+			if(endset == 0){
+				endofinstruction = lcv;
+				endset = 1;
+			}
+		}
+
+		if(strcmp(argv[lcv], "<") == 0){
+			// REDIRECT - INPUT
+			if(!(argv[lcv + 1])){	// no file specified
+				return(printError());
+			}
+			if((lcv + 2) < argc-1){	// too many args after redirect
+				if(strcmp(argv[lcv + 2], ">") != 0){
+					if(strcmp(argv[lcv + 2], "&") != 0){
+						return(printError());
+					}
+				}
+			}
+			inputRedirect = argv[lcv + 1];	
+
+			// sets index of end of instruction to be executed	
+			if(endset == 0){
+				endofinstruction = lcv;
+				endset = 1;
+			}
+		}
+	}
+
+	// if argv contains <, >, &: creates new argv w/out these chars 
+	int newLength = 0;
+	if(endset == 1){
+		newLength = endofinstruction + 1;
+	} else if(background == 1){
+		newLength = argc - 1;
+	} else {
+		newLength = argc;
+	}
+	
+	char *newargv[newLength];
+	for(int lcv = 0; lcv < newLength - 1; ++lcv){
+		newargv[lcv] = argv[lcv];
+	}
+	newargv[newLength - 1] = NULL;		
+	executeInstruction(newargv, outputRedirect, inputRedirect, background);	
+
+	return;
+}
+
+void executeInstruction(char *argv[], char *outR, char *inR, int background){
+	pid_t pid, wpid;
+
+	// create child process with fork() - check for errors
+	if((pid = fork()) == -1){	// create child process
+		return(printError());
+	} else if(pid == 0){		// in child, execute process
+	
+		//input and output redirect cases
+		if(outR){
+			redirectOutput(outR);
+		}
+		if(inR){
+			redirectInput(inR);
+		}
+		
+		if((execvp(argv[0], argv)) == -1){
+			printError();
+			exit(0);
+		}	
+	} else{				// in parent
+		// do not run in background - wait for child to execute
+		if(background == 0){
+			while(wpid != pid){
+				if((wpid = waitpid(pid, NULL, WNOHANG)) == -1){
+					return(printError());
+				}
+			}
+		} else {
+		// run in background
+			for(int lcv = 0; lcv < 20; ++lcv){
+				if(runningpids[lcv] == 0){
+					runningpids[lcv] = pid;
+					return;
+				}
+			}
+			return(printError());
+		}
+	}
+
+	return;
+}
+
+//used for reading from file
+void redirectInput(char *file){
+	int myFile;
+	myFile = open(file, O_RDONLY);
+	if(myFile == -1){	
+		return(printError());
+	}
+	if((dup2(myFile, STDIN_FILENO)) == -1){
+		return(printError());
+	}
+	if(close(myFile) == -1){
+		return(printError());
+	}
+	return;	
+}
+
+//used for writing to file
+void redirectOutput(char *file){
+	int myFile;
+	myFile = open(file, O_WRONLY|O_CREAT|O_TRUNC, 00700);
+	if(myFile == -1){	
+		return(printError());
+	}
+	if((dup2(myFile, STDOUT_FILENO)) == -1){
+		return(printError());
+	}
+	if(close(myFile) == -1){
+		return(printError());
+	}
+	return;	
+}
+
+
+//these two functions make the pipe arguments
+//ex: input is "seq 5 | wc -c"
+//output is seq 5 and wc -c
+void make_pipe1(char *pipe1[], char *argv[], int split){
+	for(int lcv = 0; lcv < split; ++lcv){
+		pipe1[lcv] = argv[lcv];
+	}
+	pipe1[split] = NULL;
+}
+
+void make_pipe2(char *pipe2[], char *argv[], int split, int end){
+	int length = end - split - 1;
+	for(int lcv = 0; lcv - length; ++lcv){
+		pipe2[lcv] = argv[split + lcv + 1];
+	}
+}
+
+void pwd(){
+	char *out = getcwd(NULL, 0);
+	if(out == NULL){
+		return(printError());
+	}
+	if(write(STDOUT_FILENO, out, strlen(out)) == (-1)){
+		return(printError());
+	}
+	if(write(STDOUT_FILENO, "\n", 1) == (-1)){
+		return(printError());
+	}
+	free(out);	
+	out = NULL;
+	return;
 }
 
 void cd(char *dir){
-	if (strlen(dir)==0){
+	if(strlen(dir) == 0){
 		dir = getenv("HOME");
 	}
-
 	int test = chdir(dir);
+	if(test == -1){
+		return(printError());
+	}
+	return;
+}
 
-	if (test == -1){
-		myError();
+
+void printError(){
+	char error_message[30] = "An error has occurred\n";
+	if(write(STDERR_FILENO, error_message, strlen(error_message)) == (-1)){
+		return;
 	}
 }
 
-void myError(){
-	char* out = "An error has occurred\n";
-	write(STDERR_FILENO, out, strlen(out));
-}
+void clearzombies(){
+	pid_t zpid;
 
-void prompt(int i){
-	printf("Shell (%i)> ", i);
-	fflush(stdout);
-}
-
-//accepts filename and a number, 0 for output/writing
-//1 for input/reading and redirects the stdout/stdin
-void coolPrint(char* fileName, int num){
-	FILE *file = NULL;
-
-	if (num ==0){
-	file = fopen(fileName, "w");
-	
-	if (file == NULL){myError();}
-	int fn = fileno(file);
-	dup2(fn, fileno(stdout));
-	} else {
-	file = fopen(fileName, "r");
-	
-	if (file == NULL){myError();}
-	int fn = fileno(file);
-	dup2(fn, fileno(stdin));
-	
+	for(int lcv = 0; lcv < 20; ++lcv){
+		if(runningpids[lcv] != 0){
+			// process found - check status
+			if((zpid = (waitpid(runningpids[lcv], NULL, WNOHANG))) == -1){
+				return(printError());
+			} else if(zpid == runningpids[lcv]){
+				// child has finish execution - clear from array
+				runningpids[lcv] = 0;
+			}
+		}
 	}
-	
-	
+	return;
 }
 
-//accepts array of arguments and does appropriate exec call
-void os(char** cha){
-	char* first;
-	first=change_my_string(cha[0]);
-	cha[0] = first;
+
+void exitshell(){
+	for(int lcv = 0; lcv < 20; ++lcv){
+		if(runningpids[lcv] != 0){
+			if(kill(runningpids[lcv], SIGKILL) == -1){
+				return(printError());
+			}
+		}
+	}
+	exit(0);
 	
-	int  child = fork();
-	int stat;
+	return;
+}
+
+//manages the piping process
+void myPipe(char** first, char** second){
+	int pid, status;
+	int fd[2];
+	pipe(fd);
+	run_pipe1(fd, first);
+	run_pipe2(fd, second);
+	close(fd[0]); close(fd[1]); 	
+	while ((pid = wait(&status)) != -1){	
+	}
+}
+
+//redirects and runs the first half of the pipe argument
+void run_pipe1(int fd[], char** arg1)	{
+
+	int child = fork();
 	if (child == -1){
-		myError();
-		exit(0);
-	}
+		printError();
+		exit(1);
+	} else if (child == 0) {
+		dup2(fd[1], 1);
+		close(fd[0]); 	
+		execvp(arg1[0], arg1);	
+		printError();
+		exit(0);		
 
-	if (child == 0){
-		execvp(cha[0], cha);
-	} else { 
-		waitpid(child, &stat, 0);
 	}
-	
 }
 
-//accepts array of arguments and integer for number of arguments
-//ex: takes in "seq 5 | wc -c" and returns an array with {"seq", "5"}
-char** first_pipe(char** args, int size){
-	int index =0;
-	for (int i = 0; i < size; i++){
-		if (args[i][0] == '|'){
-			index = i;
-			i = size;
-		}
-	}
+//redirects and runs the second half of the pipe argument
+void run_pipe2(int fd[], char** arg2){
+	int child = fork();
+	if (child == -1){
+		printError();
+		exit(1);
+	} else if (child == 0) {
+		dup2(fd[0], 0);
+		close(fd[1]); 	
+		execvp(arg2[0], arg2);	
+		printError();
+		exit(0);		
 
-	char** first = malloc((index+1)*sizeof(char*));
-	
-	for (int i = 0; i < index; i++){		
-		first[i] = strdup(args[i]);
 	}
-	first[index] = NULL;
-	
-	char* b = change_my_string(first[0]);
-	first[0] = b;
-	
-	return first;
 }
-
-//accepts array of arguments and integer for number of arguments
-//ex: takes in "seq 5 | wc -c" and returns an array with {"wc", "-c"}
-char** sec_pipe(char** args, int size){
-	int index =0;
-	
-	for (int i = 0; i < size; i++){
-		if (args[i][0] == '|'){
-			index = i;
-			i = size;
-		}
-	}
-	
-	int sec_size = size-index;
-	
-	char** second = malloc((sec_size)*sizeof(char*));
-	for (int i = 0; i < sec_size-1; i++){
-		second[i] = strdup(args[index+1+i]);
-	}
-	second[sec_size-1] = NULL;
-	char *a = change_my_string(second[0]);
-	
-	second[0] = a;	
-	return second;
-}
-
-//accepts two arrays of arguments and does the appropriate pipe and exec instructions
-//ex: takes in "seq 5" and "wc -c" and returns 10
-void piper(char** args1, char** args2){
-	pid_t child1 = fork();
-	if (child1 == -1){
-		myError();
-		exit(0);
-	}
-	pid_t child2;
-	int stat;
-	if (child1 == 0){
-		int fd[2];
-		pipe(fd);
-		child2 = fork();
-		if (child2 == -1){
-			myError();
-			exit(0);
-		}
-		if (child2 == 0){
-			close(fd[1]);
-			dup2(fd[0], fileno(stdin));
-			if ((execvp(args2[0], args2)) == -1){
-				myError();
-				exit(0);
-			}
-		} else { 
-			close(fd[0]);
-			dup2(fd[1], fileno(stdout));
-			if ((execvp(args1[0], args1)) == -1){
-				myError();
-				exit(0);
-			}
-		}
-	} else { 
-		waitpid(child2, &stat, 0);
-		waitpid(child1, &stat, 0); 
-	}
-
-}
-char* change_my_string(char* cha){
-	
-	char* first = strdup("");
-	if((( strcmp(cha, "ls")) == 0) || ((strcmp(cha, "ps")) == 0 )){
-		strcpy(first, "/bin/");
-
-	} else if( (strcmp(cha, "head") == 0) ||  (strcmp(cha, "wc") == 0) || 
-		(strcmp(cha, "seq") == 0) ||  (strcmp(cha, "yes") == 0) ||  (strcmp(cha, "find") == 0)){
-		strcpy(first, "/usr/bin/");
-	}
-
-	strcat(first, cha);
-
-	return first;
-
-}
-
